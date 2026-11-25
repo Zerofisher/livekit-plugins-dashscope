@@ -1,0 +1,77 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "livekit-plugins-dashscope"
+dynamic = ["version"]
+description = "LiveKit Agents plugin for Alibaba Cloud DashScope speech-to-text (Fun-ASR) and CosyVoice text-to-speech"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10.0"
+authors = [{ name = "lesion" }]
+keywords = ["voice", "ai", "realtime", "audio", "livekit", "dashscope", "funasr", "cosyvoice", "tts"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Multimedia :: Sound/Audio",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3 :: Only",
+]
+dependencies = [
+    "livekit-agents>=1.8.6,<1.9",
+    "aiohttp>=3.9.0",
+]
+
+[tool.hatch.version]
+path = "livekit/plugins/dashscope/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["livekit"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/livekit"]
+
+[project.urls]
+Source = "https://github.com/Zerofisher/livekit-plugins-dashscope"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "ruff",
+    "mypy",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+markers = [
+    "unit: hermetic tests, no network / credentials",
+    "plugin: integration tests against the real DashScope API (need DASHSCOPE_API_KEY)",
+]
+addopts = "-m 'unit'"
+
+# keeps the livekit/agents plugin conventions (livekit is first-party, no line-length lint)
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["livekit"]
+
+[tool.mypy]
+strict = true
+python_version = "3.10"
+ignore_missing_imports = true
+packages = ["livekit.plugins.dashscope"]
+# same convention as the livekit/agents plugins (e.g. `class STT(stt.STT)` without type args)
+disallow_any_generics = false
