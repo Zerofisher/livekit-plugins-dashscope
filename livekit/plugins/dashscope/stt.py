@@ -242,12 +242,22 @@ class SpeechStream(stt.RecognizeStream):
 
         while True:
             try:
-                # Every task restarts DashScope's clock at 0. Carry the elapsed time into the
-                # offset so timestamps stay linear across flush() / update_options() reconnects,
-                # as RecognizeStream._main_task does across retries.
+                # Every task restarts DashScope's clock at 0, so timestamps must stay linear
+                # across flush() / update_options() reconnects.
                 now = time.time()
                 if segment_started_at is not None:
-                    self.start_time_offset += now - segment_started_at
+                    restart_clock = getattr(self._input_ch, "restart_provider_clock", None)
+                    if restart_clock is not None:
+                        # livekit-agents >= 1.8.11 (livekit/agents#7795): start_time_offset is
+                        # anchored on the first frame each connection reads, and assigning it
+                        # declares the session start instead of adding to the offset, so `+=`
+                        # would be lost. Re-anchor on the next frame read, as the upstream
+                        # plugins do when they reconnect inside _run.
+                        restart_clock()
+                    else:
+                        # older SDKs: carry the elapsed time into the offset, as
+                        # RecognizeStream._main_task did across retries
+                        self.start_time_offset += now - segment_started_at
                 segment_started_at = now
 
                 # Reset state for each connection

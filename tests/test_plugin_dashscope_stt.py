@@ -1227,13 +1227,37 @@ class TestErrorClassification:
         assert mock_session.ws_connect.call_count == 1
 
 
+class _AnswersAfterAudioWS(MockWSConnection):
+    """Answers the way DashScope does: task-started at once, results only once audio arrived.
+
+    Since livekit-agents 1.8.11 the stream's offset is anchored when a connection reads its
+    first frame, so a result sent before any audio would carry the previous anchor.
+    """
+
+    def __init__(self, server_messages: list[aiohttp.WSMessage]) -> None:
+        super().__init__(server_messages[:1])
+        self._after_audio = server_messages[1:]
+
+    async def send_bytes(self, data: bytes) -> None:
+        await super().send_bytes(data)
+        for msg in self._after_audio:
+            self._messages.put_nowait(msg)
+        self._after_audio = []
+
+    async def receive(self) -> aiohttp.WSMessage:
+        try:
+            return await asyncio.wait_for(self._messages.get(), timeout=60)
+        except (TimeoutError, asyncio.TimeoutError):
+            return aiohttp.WSMessage(type=aiohttp.WSMsgType.CLOSED, data=None, extra=None)
+
+
 class TestTimelineAcrossReconnects:
     @pytest.mark.asyncio
     async def test_flush_reconnect_keeps_timestamps_linear(self) -> None:
         """DashScope restarts its clock for every task; the second segment's timestamps must
         include the time that elapsed in the first one."""
         instance = _create_stt()
-        ws1 = MockWSConnection(
+        ws1 = _AnswersAfterAudioWS(
             [
                 _make_task_started_msg(),
                 _make_result_msg("第一句", sentence_end=True, begin_time=0, end_time=100),
@@ -1241,7 +1265,7 @@ class TestTimelineAcrossReconnects:
                 _make_closed_msg(),
             ]
         )
-        ws2 = MockWSConnection(
+        ws2 = _AnswersAfterAudioWS(
             [
                 _make_task_started_msg(),
                 _make_result_msg("第二句", sentence_end=True, begin_time=0, end_time=100),
